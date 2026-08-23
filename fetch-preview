@@ -14,6 +14,15 @@ runtime_dir=${XDG_RUNTIME_DIR:-}
 tmp=$(mktemp -- "$runtime_dir/omarchy-marketplace-preview.XXXXXX")
 trap 'rm -f -- "$tmp"' EXIT
 
-curl -fsSL --max-time 15 --max-filesize 4194304 -o "$tmp" -- "$url"
+http_code=$(
+  curl --fail --silent --show-error \
+    --proto '=https' \
+    --max-time 15 \
+    --max-filesize 4194304 \
+    --output "$tmp" \
+    --write-out '%{http_code}' \
+    -- "$url"
+)
+[[ $http_code == 200 ]] || exit 1
 mv -T -- "$tmp" "$target"
 trap - EXIT
