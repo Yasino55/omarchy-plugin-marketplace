@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "jason.marketplace",
+  "name": "Plugin Marketplace",
+  "version": "0.1.0",
+  "author": "Jason",
+  "license": "MIT",
+  "description": "Browse, inspect, and install community plugins from Omarchy Plugins.",
+  "kinds": ["bar-widget"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "barWidget": "MarketplaceButton.qml"
+  },
+  "barWidget": {
+    "displayName": "Plugin Marketplace",
+    "description": "Open the community plugin marketplace.",
+    "category": "Plugins",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

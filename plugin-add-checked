@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+fail() {
+  printf 'plugin-add-checked: %s\n' "$*" >&2
+  exit 1
+}
+
+runtime_dir=${XDG_RUNTIME_DIR:-}
+[[ -n $runtime_dir && -d $runtime_dir && -O $runtime_dir ]] ||
+  fail "secure user runtime directory is unavailable"
+runtime_mode=$(stat -Lc '%a' -- "$runtime_dir" 2>/dev/null || true)
+[[ $runtime_mode == 700 ]] || fail "user runtime directory must have mode 0700"
+
+if [[ ${1:-} == "--consume-receipt" ]]; then
+  token=${2:-}
+  expected_id=${3:-}
+  [[ $token =~ ^[0-9]+$ ]] || exit 1
+  [[ $expected_id =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && $expected_id != *..* ]] || exit 1
+  receipt="$runtime_dir/omarchy-marketplace-add.$token"
+  [[ -f $receipt && ! -L $receipt && $(<"$receipt") == "$expected_id" ]] || exit 1
+  exit 0
+fi
+
+if [[ ${1:-} == "--remove-receipt" ]]; then
+  token=${2:-}
+  [[ $token =~ ^[0-9]+$ ]] || exit 1
+  rm -f -- "$runtime_dir/omarchy-marketplace-add.$token"
+  exit 0
+fi
+
+repo=${1:-}
+expected_id=${2:-}
+token=${3:-}
+plugins_dir="$HOME/.config/omarchy/plugins"
+stage="$plugins_dir/.marketplace-add.tmp.$$"
+target="$plugins_dir/$expected_id"
+receipt="$runtime_dir/omarchy-marketplace-add.$token"
+
+[[ $repo =~ ^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(\.git)?$ ]] ||
+  fail "invalid GitHub repository URL"
+[[ $expected_id =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && $expected_id != *..* ]] ||
+  fail "invalid expected plugin id"
+[[ $token =~ ^[0-9]+$ ]] || fail "invalid install handoff token"
+rm -f "$receipt"
+
+mkdir -p "$plugins_dir"
+[[ ! -e $target && ! -L $target ]] || fail "plugin '$expected_id' is already installed"
+rm -rf "$stage"
+trap 'rm -rf "$stage"' EXIT
+
+export GIT_TERMINAL_PROMPT=0
+export GIT_ASKPASS=/bin/false
+export GIT_SSH_COMMAND="ssh -oBatchMode=yes"
+git -c credential.helper= -c core.askPass=/bin/false clone --quiet --no-recurse-submodules \
+  -- "$repo" "$stage" || fail "could not download the plugin repository"
+omarchy plugin validate "$stage" || fail "plugin validation failed"
+
+manifest_id=$(jq -r '.id // empty' "$stage/manifest.json" 2>/dev/null || true)
+[[ $manifest_id == "$expected_id" ]] ||
+  fail "repository manifest id does not match the marketplace plugin id"
+
+plugin_list=$(omarchy plugin list --json) || fail "could not inspect installed plugin ids"
+jq -e 'type == "array" and all(.[]; type == "object" and (.id | type == "string"))' \
+  <<<"$plugin_list" >/dev/null || fail "installed plugin state is invalid"
+if jq -e --arg id "$expected_id" 'any(.[]; .id == $id)' <<<"$plugin_list" >/dev/null; then
+  fail "plugin id '$expected_id' is already in use"
+fi
+
+mv -T -- "$stage" "$target" || fail "plugin destination changed during installation"
+trap - EXIT
+umask 077
+receipt_tmp=$(mktemp -- "$runtime_dir/omarchy-marketplace-add.XXXXXX") ||
+  fail "could not create install handoff receipt"
+if ! printf '%s\n' "$expected_id" >"$receipt_tmp" ||
+    ! mv -T -- "$receipt_tmp" "$receipt"; then
+  rm -f -- "$receipt_tmp"
+  fail "could not persist install handoff receipt"
+fi
+printf 'Added %s into %s\n' "$expected_id" "$target"
+omarchy-shell shell rescanPlugins >/dev/null

@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+id=${1:-}
+expected_local=${2:-}
+expected_remote=${3:-}
+plugins_dir="$HOME/.config/omarchy/plugins"
+plugin_dir="$plugins_dir/$id"
+
+fail() {
+  printf 'plugin-update-checked: %s\n' "$*" >&2
+  exit 1
+}
+
+remote_is_safe() {
+  [[ $1 =~ ^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(\.git)?$ \
+    || $1 =~ ^git@github\.com:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(\.git)?$ \
+    || $1 =~ ^ssh://git@github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(\.git)?$ ]]
+}
+
+rollback_fail() {
+  local message="$1"
+  git -C "$plugin_dir" reset --hard ORIG_HEAD >/dev/null 2>&1 || true
+  fail "$message"
+}
+
+[[ $id =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && $id != *..* ]] || fail "invalid plugin id"
+[[ $expected_local =~ ^[0-9a-f]{40,64}$ ]] || fail "invalid expected local commit"
+[[ $expected_remote =~ ^[0-9a-f]{40,64}$ ]] || fail "invalid expected remote commit"
+[[ $id != "jason.marketplace" ]] || fail "the running marketplace must be updated from the command line"
+[[ -d $plugin_dir/.git ]] || fail "plugin is not a Git checkout"
+manifest_id=$(jq -r '.id // empty' "$plugin_dir/manifest.json" 2>/dev/null || true)
+[[ $manifest_id == "$id" ]] || fail "installed manifest id does not match the plugin id"
+worktree_status=$(git -C "$plugin_dir" status --porcelain --untracked-files=all 2>/dev/null) ||
+  fail "could not inspect the plugin worktree"
+[[ -z $worktree_status ]] || fail "plugin worktree has local changes"
+
+remote=$(git -C "$plugin_dir" remote get-url origin 2>/dev/null || true)
+remote_is_safe "$remote" || fail "origin is not a supported GitHub URL"
+
+actual_local=$(git -C "$plugin_dir" rev-parse HEAD 2>/dev/null || true)
+[[ $actual_local == "$expected_local" ]] || fail "local commit changed after the update check"
+
+export GIT_TERMINAL_PROMPT=0
+export GIT_ASKPASS=/bin/false
+export GIT_SSH_COMMAND="ssh -oBatchMode=yes -oStrictHostKeyChecking=yes -oConnectTimeout=10"
+
+git -C "$plugin_dir" -c credential.helper= -c core.askPass=/bin/false \
+  fetch --quiet "$remote" HEAD || fail "could not fetch the checked GitHub origin"
+fetched_commit=$(git -C "$plugin_dir" rev-parse FETCH_HEAD 2>/dev/null || true)
+[[ $fetched_commit == "$expected_remote" ]] || fail "remote commit changed after confirmation"
+actual_local=$(git -C "$plugin_dir" rev-parse HEAD 2>/dev/null || true)
+[[ $actual_local == "$expected_local" ]] || fail "local commit changed during the update"
+worktree_status=$(git -C "$plugin_dir" status --porcelain --untracked-files=all 2>/dev/null) ||
+  fail "could not recheck the plugin worktree"
+[[ -z $worktree_status ]] || fail "plugin worktree changed during the update"
+
+git -C "$plugin_dir" merge --ff-only FETCH_HEAD >/dev/null 2>&1 ||
+  fail "the checked update cannot be fast-forwarded"
+previous_commit=$(git -C "$plugin_dir" rev-parse ORIG_HEAD 2>/dev/null || true)
+merged_commit=$(git -C "$plugin_dir" rev-parse HEAD 2>/dev/null || true)
+if [[ $previous_commit != "$expected_local" || $merged_commit != "$expected_remote" ]]; then
+  rollback_fail "Git did not apply the exact confirmed commit transition"
+fi
+if ! omarchy plugin validate "$plugin_dir"; then
+  rollback_fail "updated plugin failed validation and was rolled back"
+fi
+manifest_id=$(jq -r '.id // empty' "$plugin_dir/manifest.json" 2>/dev/null || true)
+[[ $manifest_id == "$id" ]] || rollback_fail "updated manifest id changed and was rolled back"
+
+omarchy-shell shell rescanPlugins >/dev/null || fail "could not rescan plugins"
+printf 'Updated %s.\n' "$id"
