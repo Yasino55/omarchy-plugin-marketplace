@@ -39,6 +39,10 @@ o.bind("SUPER + M", "Plugin Marketplace", "omarchy-shell shell toggle jason.mark
 
 The plugin does not modify Hyprland keybindings or application-launcher files.
 
+## Preview
+
+![Plugin Marketplace](assets/marketplace-preview.png)
+
 The catalog is loaded from `https://omarchyplugins.com/catalog.json`. Search and
 filtering happen locally. Installation is available only for entries explicitly
 marked installable whose repository is a valid GitHub HTTPS URL.
