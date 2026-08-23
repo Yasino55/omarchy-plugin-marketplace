@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+url=${1:-}
+target=${2:-}
+runtime_dir=${XDG_RUNTIME_DIR:-}
+
+[[ $url =~ ^https://omarchyplugins\.com(/|$) ]] || exit 1
+[[ -n $runtime_dir && -d $runtime_dir && -O $runtime_dir ]] || exit 1
+[[ $(stat -Lc '%a' -- "$runtime_dir" 2>/dev/null || true) == 700 ]] || exit 1
+[[ $target == "$runtime_dir"/omarchy-marketplace-preview.png ]] || exit 1
+
+tmp=$(mktemp -- "$runtime_dir/omarchy-marketplace-preview.XXXXXX")
+trap 'rm -f -- "$tmp"' EXIT
+
+curl -fsSL --max-time 15 --max-filesize 4194304 -o "$tmp" -- "$url"
+mv -T -- "$tmp" "$target"
+trap - EXIT

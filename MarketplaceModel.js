@@ -120,18 +120,40 @@ function repoIsSafe(value) {
 function validateCatalogPlugin(plugin) {
   if (!plugin || typeof plugin !== "object" || Array.isArray(plugin)) return false
   var id = String(plugin.id || "")
-  if (!pluginIdIsSafe(id)) return false
-  if (!String(plugin.name || "")) return false
-  if (!repoIsSafe(plugin.repo)) return false
+  var name = String(plugin.name || "")
+  var repo = String(plugin.repo || "")
+  if (!pluginIdIsSafe(id) || id.length > 128) return false
+  if (!name || name.length > 160) return false
+  if (repo.length > 256 || !repoIsSafe(repo)) return false
   if (plugin.installAvailable !== true && plugin.installAvailable !== false) return false
   if (String(plugin.sourceType || "community") !== "community") return false
+  var textFields = ["description", "author", "version", "category", "kind", "installNote"]
+  for (var i = 0; i < textFields.length; i++) {
+    var field = plugin[textFields[i]]
+    if (field !== undefined && field !== null && String(field).length > 1200) return false
+  }
+  if (plugin.tags !== undefined) {
+    if (!Array.isArray(plugin.tags) || plugin.tags.length > 12) return false
+    for (var j = 0; j < plugin.tags.length; j++) {
+      if (typeof plugin.tags[j] !== "string" || plugin.tags[j].length > 80) return false
+    }
+  }
+  var preview = plugin.previewImage || plugin.previewThumbnail
+  if (preview !== undefined && preview !== null && String(preview).length > 512) return false
   return true
+}
+
+function plainText(value, fallback) {
+  var text = String(value || fallback || "")
+  return text.replace(/[<>&]/g, "")
 }
 
 function previewUrl(value) {
   var source = String(value || "")
   if (!source) return ""
-  if (/^https:\/\//.test(source)) return source
+  if (/^https:\/\/omarchyplugins\.com(?:\/|$)/.test(source)) return source
+  if (/^https?:\/\//.test(source) || source.indexOf("//") === 0 || source.indexOf("..") !== -1)
+    return ""
   return "https://omarchyplugins.com/" + source.replace(/^\/+/, "")
 }
 

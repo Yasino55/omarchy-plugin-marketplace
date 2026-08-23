@@ -63,6 +63,9 @@ Item {
   property int updateCheckGeneration: 0
   property int activeUpdateCheckGeneration: 0
   property string installHandoffPluginId: ""
+  property string previewPath: ""
+  property string previewRequestUrl: ""
+  property string previewActiveUrl: ""
 
   readonly property var sortOptions: {
     var options = [
@@ -185,7 +188,7 @@ Item {
       var schemaVersion = Number(catalog.stateSchemaVersion)
       if (!isFinite(schemaVersion) || schemaVersion < 1 || schemaVersion > 99
           || Math.floor(schemaVersion) !== schemaVersion
-          || !Array.isArray(catalog.plugins))
+          || !Array.isArray(catalog.plugins) || catalog.plugins.length > 2000)
         throw new Error("Unsupported catalog format")
       var validPlugins = []
       for (var i = 0; i < catalog.plugins.length; i++) {
@@ -216,7 +219,24 @@ Item {
       if (response.schemaVersion !== 1 || !response.plugins
           || typeof response.plugins !== "object" || Array.isArray(response.plugins))
         throw new Error("Unsupported engagement format")
-      root.engagementStats = response.plugins
+      var stats = ({})
+      var ids = Object.keys(response.plugins)
+      if (ids.length > 2000) throw new Error("Engagement response is too large")
+      for (var i = 0; i < ids.length; i++) {
+        var id = ids[i]
+        if (!MarketplaceModel.pluginIdIsSafe(id) || id.length > 128) continue
+        var entry = response.plugins[id]
+        if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue
+        var safeEntry = ({})
+        var metrics = ["views", "copies", "hearts"]
+        for (var j = 0; j < metrics.length; j++) {
+          var metric = Number(entry[metrics[j]])
+          if (isFinite(metric) && metric >= 0 && metric <= 1000000000)
+            safeEntry[metrics[j]] = metric
+        }
+        stats[id] = safeEntry
+      }
+      root.engagementStats = stats
       root.engagementAvailable = true
       root.engagementRequestParsed = true
       if (root.catalogLoaded) root.scheduleRebuild()
@@ -244,17 +264,17 @@ Item {
       var stats = root.engagementStats[pluginId] || {}
       rows.push({
         pluginId: pluginId,
-        pluginName: String(plugin.name || plugin.id || "Unnamed plugin"),
-        description: String(plugin.description || "No description provided."),
-        author: String(plugin.author || "Unknown"),
+        pluginName: MarketplaceModel.plainText(plugin.name || plugin.id, "Unnamed plugin"),
+        description: MarketplaceModel.plainText(plugin.description, "No description provided."),
+        author: MarketplaceModel.plainText(plugin.author, "Unknown"),
         pluginVersion: String(plugin.version || ""),
-        category: String(plugin.category || "Other"),
-        tagsText: (plugin.tags || []).join("  ·  "),
+        category: MarketplaceModel.plainText(plugin.category, "Other"),
+        tagsText: (plugin.tags || []).map(function(tag) { return MarketplaceModel.plainText(tag) }).join("  ·  "),
         repo: String(plugin.repo || ""),
-        kind: String(plugin.kind || "Plugin"),
+        kind: MarketplaceModel.plainText(plugin.kind, "Plugin"),
         verificationStatus: String(plugin.verificationStatus || "unverified"),
         installAvailable: plugin.installAvailable === true && MarketplaceModel.repoIsSafe(plugin.repo),
-        installNote: String(plugin.installNote || ""),
+        installNote: MarketplaceModel.plainText(plugin.installNote),
         previewImage: MarketplaceModel.previewUrl(plugin.previewImage || plugin.previewThumbnail),
         listingCommit: String(plugin.listingValidatedCommit || ""),
         upstreamCommit: String(plugin.upstreamValidatedCommit || ""),
@@ -278,7 +298,20 @@ Item {
     root.selectedIndex = rows.length > 0 ? nextIndex : 0
     Qt.callLater(function() {
       if (root.displayRows.length > 0) pluginList.positionViewAtIndex(root.selectedIndex, ListView.Contain)
+      root.refreshPreview()
     })
+  }
+
+  function refreshPreview() {
+    var source = root.selectedPlugin ? String(root.selectedPlugin.previewImage || "") : ""
+    root.previewRequestUrl = source
+    root.previewPath = ""
+    if (!source) return
+    if (previewProc.running) return
+    root.previewActiveUrl = source
+    previewProc.command = ["bash", root.pluginDir + "/fetch-preview", source,
+      Quickshell.env("XDG_RUNTIME_DIR") + "/omarchy-marketplace-preview.png"]
+    previewProc.running = true
   }
 
   function scheduleRebuild(preserveSelection) {
@@ -919,7 +952,8 @@ Item {
 
   Process {
     id: catalogProc
-    command: ["curl", "-fsSL", "--max-time", "20", "https://omarchyplugins.com/catalog.json"]
+    command: ["curl", "-fsSL", "--max-time", "20", "--max-filesize", "8388608",
+      "https://omarchyplugins.com/catalog.json"]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: root.loadCatalog(text)
@@ -1028,13 +1062,27 @@ Item {
 
   Process {
     id: engagementProc
-    command: ["curl", "-fsSL", "--max-time", "20", "https://api.omarchyplugins.com/v1/stats"]
+    command: ["curl", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
+      "https://api.omarchyplugins.com/v1/stats"]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: root.loadEngagement(text)
     }
     onExited: function(exitCode) {
       if (exitCode !== 0 && !root.engagementRequestParsed) root.engagementAvailable = false
+    }
+  }
+
+  Process {
+    id: previewProc
+    onExited: function(exitCode) {
+      var selectedSource = root.selectedPlugin ? String(root.selectedPlugin.previewImage || "") : ""
+      if (root.previewActiveUrl !== selectedSource) {
+        Qt.callLater(function() { root.refreshPreview() })
+        return
+      }
+      if (exitCode === 0)
+        root.previewPath = Quickshell.env("XDG_RUNTIME_DIR") + "/omarchy-marketplace-preview.png"
     }
   }
 
@@ -1424,6 +1472,7 @@ Item {
                       Text {
                         width: parent.width - statusText.width - parent.spacing
                         text: pluginRow.pluginName
+                        textFormat: Text.PlainText
                         color: pluginRow.selectedRow ? root.accent : root.foreground
                         elide: Text.ElideRight
                         font.family: root.fontFamily
@@ -1433,6 +1482,7 @@ Item {
                       Text {
                         id: statusText
                         text: pluginRow.installed ? "INSTALLED" : pluginRow.verificationStatus.toUpperCase()
+                        textFormat: Text.PlainText
                         color: pluginRow.installed || pluginRow.verificationStatus === "verified" ? root.accent : root.foreground
                         opacity: pluginRow.installed || pluginRow.verificationStatus === "verified" ? 1 : 0.46
                         font.family: root.fontFamily
@@ -1443,6 +1493,7 @@ Item {
                     Text {
                       width: parent.width
                       text: pluginRow.description
+                      textFormat: Text.PlainText
                       color: root.foreground
                       opacity: 0.76
                       elide: Text.ElideRight
@@ -1456,6 +1507,7 @@ Item {
                       Text {
                         width: Math.max(0, parent.width - metricsText.implicitWidth - parent.spacing)
                         text: "@" + pluginRow.author + "  ·  " + pluginRow.kind + "  ·  " + pluginRow.category
+                        textFormat: Text.PlainText
                         color: root.foreground
                         opacity: 0.58
                         elide: Text.ElideRight
@@ -1466,6 +1518,7 @@ Item {
                       Text {
                         id: metricsText
                         text: " " + pluginRow.viewsText + "   " + pluginRow.starsText + "   " + pluginRow.heartsText
+                        textFormat: Text.PlainText
                         color: root.foreground
                         opacity: 0.68
                         font.family: root.fontFamily
@@ -1537,7 +1590,7 @@ Item {
                     id: detailPreview
                     anchors.fill: parent
                     anchors.margins: Style.space(8)
-                    source: root.selectedPlugin ? root.selectedPlugin.previewImage : ""
+                    source: root.previewPath
                     visible: source.toString() !== ""
                     asynchronous: true
                     cache: true
@@ -1547,6 +1600,7 @@ Item {
                     visible: !detailPreview.visible || detailPreview.status === Image.Error
                     anchors.centerIn: parent
                     text: root.selectedPlugin ? root.selectedPlugin.pluginName.slice(0, 2).toUpperCase() : ""
+                    textFormat: Text.PlainText
                     color: root.accent
                     opacity: 0.75
                     font.family: root.fontFamily
@@ -1561,6 +1615,7 @@ Item {
                   Text {
                     width: parent.width - verificationBadge.width - parent.spacing
                     text: root.selectedPlugin ? root.selectedPlugin.pluginName : ""
+                    textFormat: Text.PlainText
                     color: root.foreground
                     wrapMode: Text.WordWrap
                     font.family: root.fontFamily
@@ -1581,6 +1636,7 @@ Item {
                       id: badgeText
                       anchors.centerIn: parent
                       text: root.selectedPlugin ? root.selectedPlugin.verificationStatus.toUpperCase() : ""
+                      textFormat: Text.PlainText
                       color: root.selectedPlugin && root.selectedPlugin.verificationStatus === "verified" ? root.accent : root.foreground
                       font.family: root.fontFamily
                       font.pixelSize: root.captionFontSize
@@ -1591,6 +1647,7 @@ Item {
                 Text {
                   width: parent.width
                   text: root.selectedPlugin ? root.selectedPlugin.description : ""
+                  textFormat: Text.PlainText
                   color: root.foreground
                   opacity: 0.8
                   wrapMode: Text.WordWrap
@@ -1602,6 +1659,7 @@ Item {
                   text: root.selectedPlugin
                     ? "by " + root.selectedPlugin.author + "  ·  " + root.selectedPlugin.kind + "  ·  " + root.selectedPlugin.category
                     : ""
+                  textFormat: Text.PlainText
                   color: root.foreground
                   opacity: 0.64
                   elide: Text.ElideRight
@@ -1612,6 +1670,7 @@ Item {
                   width: parent.width
                   visible: root.selectedPlugin && root.selectedPlugin.tagsText !== ""
                   text: root.selectedPlugin ? root.selectedPlugin.tagsText : ""
+                  textFormat: Text.PlainText
                   color: root.accent
                   elide: Text.ElideRight
                   font.family: root.fontFamily
@@ -1626,6 +1685,7 @@ Item {
                         ? "  ·  upstream " + MarketplaceModel.shortCommit(root.selectedPlugin.upstreamCommit)
                         : "")
                     : ""
+                  textFormat: Text.PlainText
                   color: root.foreground
                   opacity: 0.52
                   font.family: root.fontFamily
@@ -1648,6 +1708,7 @@ Item {
                   width: parent.width
                   visible: root.selectedPlugin && root.selectedPlugin.installNote !== ""
                   text: root.selectedPlugin ? root.selectedPlugin.installNote : ""
+                  textFormat: Text.PlainText
                   color: root.foreground
                   opacity: 0.64
                   wrapMode: Text.WordWrap
