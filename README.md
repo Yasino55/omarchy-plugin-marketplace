@@ -27,14 +27,14 @@ the bar section where the Marketplace icon should appear.
 Click the Marketplace icon in the bar, or run:
 
 ```sh
-omarchy-shell shell toggle jason.marketplace '{}'
+omarchy-shell shell toggle io.yasino55.omarchy-plugin-marketplace '{}'
 ```
 
 To add an optional `Super+M` shortcut, put this in
 `~/.config/hypr/bindings.lua`:
 
 ```lua
-o.bind("SUPER + M", "Plugin Marketplace", "omarchy-shell shell toggle jason.marketplace '{}'")
+o.bind("SUPER + M", "Plugin Marketplace", "omarchy-shell shell toggle io.yasino55.omarchy-plugin-marketplace '{}'")
 ```
 
 The plugin does not modify Hyprland keybindings or application-launcher files.
@@ -73,7 +73,7 @@ unavailable rather than treating the plugin as up to date.
 Marketplace cannot update itself while it is running. Update it from a terminal:
 
 ```sh
-omarchy plugin update jason.marketplace
+omarchy plugin update io.yasino55.omarchy-plugin-marketplace
 ```
 
 ## Icon attribution
@@ -84,5 +84,5 @@ License, copyright 2026 Lucide Icons and Contributors.
 ## Remove
 
 ```sh
-omarchy plugin remove jason.marketplace
+omarchy plugin remove io.yasino55.omarchy-plugin-marketplace
 ```

@@ -4,7 +4,7 @@ import qs.Ui
 BarWidget {
   id: root
 
-  moduleName: "jason.marketplace"
+  moduleName: "io.yasino55.omarchy-plugin-marketplace"
   readonly property bool opened: marketplaceLoader.item
     ? marketplaceLoader.item.opened === true
     : false

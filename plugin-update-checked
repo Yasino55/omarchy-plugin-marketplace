@@ -28,7 +28,7 @@ rollback_fail() {
 [[ $id =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && $id != *..* ]] || fail "invalid plugin id"
 [[ $expected_local =~ ^[0-9a-f]{40,64}$ ]] || fail "invalid expected local commit"
 [[ $expected_remote =~ ^[0-9a-f]{40,64}$ ]] || fail "invalid expected remote commit"
-[[ $id != "jason.marketplace" ]] || fail "the running marketplace must be updated from the command line"
+[[ $id != "io.yasino55.omarchy-plugin-marketplace" ]] || fail "the running marketplace must be updated from the command line"
 [[ -d $plugin_dir/.git ]] || fail "plugin is not a Git checkout"
 manifest_id=$(jq -r '.id // empty' "$plugin_dir/manifest.json" 2>/dev/null || true)
 [[ $manifest_id == "$id" ]] || fail "installed manifest id does not match the plugin id"

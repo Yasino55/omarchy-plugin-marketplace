@@ -136,7 +136,7 @@ Item {
     || postInstallEnableProc.running || postInstallRescanProc.running
     || postInstallPresenceProc.running
   readonly property bool installBusy: root.operationRunning || root.installHandoffActive
-  readonly property string pluginDir: Quickshell.env("HOME") + "/.config/omarchy/plugins/jason.marketplace"
+  readonly property string pluginDir: Quickshell.env("HOME") + "/.config/omarchy/plugins/io.yasino55.omarchy-plugin-marketplace"
 
   function open(payloadJson) {
     MarketplaceSession.openRequested = true
@@ -669,7 +669,7 @@ Item {
   function requestManagementAction(action, plugin) {
     if (root.operationRunning || !root.installedRequestParsed || !plugin
         || !MarketplaceModel.pluginIdIsSafe(plugin.pluginId)) return
-    if (plugin.pluginId === "jason.marketplace") {
+    if (plugin.pluginId === "io.yasino55.omarchy-plugin-marketplace") {
       root.statusMessage = "Manage the running marketplace itself from the command line."
       return
     }
@@ -750,7 +750,7 @@ Item {
 
   function runCheckedUpdate(plugin, expectedLocal, expectedRemote) {
     if (root.operationRunning || !plugin || plugin.active
-        || plugin.pluginId === "jason.marketplace"
+        || plugin.pluginId === "io.yasino55.omarchy-plugin-marketplace"
         || !MarketplaceModel.pluginIdIsSafe(plugin.pluginId)) {
       root.statusMessage = "Action unavailable: checked update state is no longer valid."
       return
@@ -770,7 +770,7 @@ Item {
     if (root.operationRunning) return "another plugin operation is running."
     if (!root.installedRequestParsed) return "current plugin state is unavailable."
     if (!plugin || !MarketplaceModel.pluginIdIsSafe(plugin.pluginId)) return "plugin data is invalid."
-    if (plugin.pluginId === "jason.marketplace") return "manage the running marketplace from the command line."
+    if (plugin.pluginId === "io.yasino55.omarchy-plugin-marketplace") return "manage the running marketplace from the command line."
     if (action === "enable" && plugin.kinds.indexOf("bar") !== -1)
       return "enable full-bar plugins from the command line."
     if ((action === "remove" || action === "update") && plugin.active)
@@ -1912,7 +1912,7 @@ Item {
                         spacing: Style.space(6)
 
                         Text {
-                          visible: managedRow.modelData.pluginId === "jason.marketplace"
+                          visible: managedRow.modelData.pluginId === "io.yasino55.omarchy-plugin-marketplace"
                             || managedRow.modelData.kinds.indexOf("bar") !== -1
                           anchors.verticalCenter: parent.verticalCenter
                           text: "CLI only"
@@ -1924,7 +1924,7 @@ Item {
 
                         Button {
                           visible: root.viewMode === "manage"
-                            && managedRow.modelData.pluginId !== "jason.marketplace"
+                            && managedRow.modelData.pluginId !== "io.yasino55.omarchy-plugin-marketplace"
                             && managedRow.modelData.kinds.indexOf("bar") === -1
                             && (!managedRow.modelData.enabled || managedRow.modelData.canDisable)
                           width: Style.space(root.compactManagementTable ? 68 : 78)
@@ -1946,7 +1946,7 @@ Item {
 
                         Button {
                           visible: !managedRow.modelData.firstParty
-                            && managedRow.modelData.pluginId !== "jason.marketplace"
+                            && managedRow.modelData.pluginId !== "io.yasino55.omarchy-plugin-marketplace"
                             && !managedRow.modelData.active
                             && (root.viewMode === "updates"
                               || root.gitManagedIds[managedRow.modelData.pluginId] === true)
@@ -1966,7 +1966,7 @@ Item {
 
                         Button {
                           visible: root.viewMode === "manage" && !managedRow.modelData.firstParty
-                            && managedRow.modelData.pluginId !== "jason.marketplace"
+                            && managedRow.modelData.pluginId !== "io.yasino55.omarchy-plugin-marketplace"
                             && !managedRow.modelData.active
                           width: Style.space(root.compactManagementTable ? 58 : 72)
                           height: Style.space(32)
