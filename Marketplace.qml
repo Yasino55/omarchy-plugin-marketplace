@@ -188,7 +188,7 @@ Item {
       var schemaVersion = Number(catalog.stateSchemaVersion)
       if (!isFinite(schemaVersion) || schemaVersion < 1 || schemaVersion > 99
           || Math.floor(schemaVersion) !== schemaVersion
-          || !Array.isArray(catalog.plugins) || catalog.plugins.length > 2000)
+          || !Array.isArray(catalog.plugins) || catalog.plugins.length > 20000)
         throw new Error("Unsupported catalog format")
       var validPlugins = []
       for (var i = 0; i < catalog.plugins.length; i++) {
@@ -953,7 +953,7 @@ Item {
   Process {
     id: catalogProc
     command: ["curl", "-fsSL", "--max-time", "20", "--max-filesize", "8388608",
-      "https://omarchyplugins.com/catalog.json"]
+      "https://plugins.omarchy.org/catalog.json"]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: root.loadCatalog(text)
@@ -961,7 +961,7 @@ Item {
     onExited: function(exitCode) {
       root.loading = false
       if (exitCode !== 0 && !root.catalogRequestParsed)
-        root.errorMessage = "Could not connect to omarchyplugins.com."
+        root.errorMessage = "Could not connect to plugins.omarchy.org."
     }
   }
 

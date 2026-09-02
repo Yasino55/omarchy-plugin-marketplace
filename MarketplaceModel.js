@@ -151,10 +151,10 @@ function plainText(value, fallback) {
 function previewUrl(value) {
   var source = String(value || "")
   if (!source) return ""
-  if (/^https:\/\/omarchyplugins\.com(?:\/|$)/.test(source)) return source
+  if (/^https:\/\/plugins\.omarchy\.org(?:\/|$)/.test(source)) return source
   if (/^https?:\/\//.test(source) || source.indexOf("//") === 0 || source.indexOf("..") !== -1)
     return ""
-  return "https://omarchyplugins.com/" + source.replace(/^\/+/, "")
+  return "https://plugins.omarchy.org/" + source.replace(/^\/+/, "")
 }
 
 function shortCommit(value) {
