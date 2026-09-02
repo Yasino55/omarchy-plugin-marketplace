@@ -188,7 +188,7 @@ Item {
       var schemaVersion = Number(catalog.stateSchemaVersion)
       if (!isFinite(schemaVersion) || schemaVersion < 1 || schemaVersion > 99
           || Math.floor(schemaVersion) !== schemaVersion
-          || !Array.isArray(catalog.plugins) || catalog.plugins.length > 2000)
+          || !Array.isArray(catalog.plugins) || catalog.plugins.length > 20000)
         throw new Error("Unsupported catalog format")
       var validPlugins = []
       for (var i = 0; i < catalog.plugins.length; i++) {
@@ -323,6 +323,11 @@ Item {
     if (index < 0 || index >= root.displayRows.length) return
     root.selectedIndex = index
     pluginList.positionViewAtIndex(index, ListView.Contain)
+    // Selection drives the detail preview. Without this, the preview only
+    // refreshed via the previewProc completion chain, which stalls after
+    // landing on a plugin that has no image (no process, no onExited), so
+    // the previous plugin's screenshot stayed on screen.
+    root.refreshPreview()
   }
 
   function selectRelative(delta) {
@@ -953,7 +958,7 @@ Item {
   Process {
     id: catalogProc
     command: ["curl", "-fsSL", "--max-time", "20", "--max-filesize", "8388608",
-      "https://omarchyplugins.com/catalog.json"]
+      "https://plugins.omarchy.org/catalog.json"]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: root.loadCatalog(text)
@@ -961,7 +966,7 @@ Item {
     onExited: function(exitCode) {
       root.loading = false
       if (exitCode !== 0 && !root.catalogRequestParsed)
-        root.errorMessage = "Could not connect to omarchyplugins.com."
+        root.errorMessage = "Could not connect to plugins.omarchy.org."
     }
   }
 
@@ -1180,7 +1185,9 @@ Item {
           }
           if (sortDropdown.popupOpen || managementDropdown.popupOpen) return
           if (event.key === Qt.Key_Escape) {
-            if (searchField.text) searchField.clear()
+            // Only the search field gets the "clear first, then close" step;
+            // Escape from anywhere else closes the popup immediately.
+            if (searchField.activeFocus && searchField.text) searchField.clear()
             else root.close()
             event.accepted = true
           } else if (event.key === Qt.Key_Up) {
@@ -1214,6 +1221,10 @@ Item {
 
       Column {
         anchors.fill: parent
+        // Route key events from any focused descendant (search field, tab
+        // buttons, the plugin list) through the keyCatcher handler above so
+        // Escape / arrow keys work regardless of where focus currently sits.
+        Keys.forwardTo: [keyCatcher]
         anchors.topMargin: card.contentTopInset
         anchors.rightMargin: card.contentRightInset
         anchors.bottomMargin: card.contentBottomInset
@@ -1577,6 +1588,11 @@ Item {
                     id: previewFrame
                     readonly property bool portraitImage: detailPreview.status === Image.Ready
                       && detailPreview.sourceSize.height > detailPreview.sourceSize.width * 1.15
+                    // Only render the frame when the selected plugin actually
+                    // has a screenshot that loaded; otherwise show nothing.
+                    visible: root.selectedPlugin !== null
+                      && root.selectedPlugin.previewImage !== ""
+                      && detailPreview.status !== Image.Error
                     width: parent.width
                     height: portraitImage
                       ? Math.min(Style.space(400), browseDetailPane.height * 0.58)
@@ -1593,19 +1609,12 @@ Item {
                     source: root.previewPath
                     visible: source.toString() !== ""
                     asynchronous: true
-                    cache: true
+                    // Every plugin's preview is fetched to the same on-disk
+                    // path, so QML's pixmap cache would keep serving the first
+                    // image it decoded for that URL. Disable it to re-read the
+                    // freshly downloaded file on each selection.
+                    cache: false
                     fillMode: Image.PreserveAspectFit
-                  }
-                  Text {
-                    visible: !detailPreview.visible || detailPreview.status === Image.Error
-                    anchors.centerIn: parent
-                    text: root.selectedPlugin ? root.selectedPlugin.pluginName.slice(0, 2).toUpperCase() : ""
-                    textFormat: Text.PlainText
-                    color: root.accent
-                    opacity: 0.75
-                    font.family: root.fontFamily
-                    font.pixelSize: Style.space(44)
-                    font.bold: true
                   }
                   }
 
@@ -2086,8 +2095,8 @@ Item {
           text: root.statusMessage || (root.errorMessage && root.catalogLoaded
             ? root.errorMessage
             : root.viewMode !== "browse"
-              ? "Esc clears search, then closes  ·  Tab moves between actions"
-              : "Esc clears search, then closes  ·  ↑/↓ selects")
+              ? "Esc closes  ·  Tab moves between actions"
+              : "Esc closes  ·  ↑/↓ selects")
           color: root.statusMessage.indexOf("failed") !== -1 || root.errorMessage ? Color.urgent : root.foreground
           opacity: root.statusMessage || root.errorMessage ? 1 : 0.52
           elide: Text.ElideRight
