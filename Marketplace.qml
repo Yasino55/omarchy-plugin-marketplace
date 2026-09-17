@@ -953,7 +953,7 @@ Item {
 
   Process {
     id: catalogProc
-    command: ["curl", "-fsSL", "--max-time", "20", "--max-filesize", "16777216",
+    command: ["curl", "-fsS", "--max-time", "20", "--max-filesize", "16777216",
       "https://plugins.omarchy.org/catalog.json"]
     stdout: StdioCollector {
       waitForEnd: true
@@ -1063,7 +1063,7 @@ Item {
 
   Process {
     id: engagementProc
-    command: ["curl", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
+    command: ["curl", "-fsS", "--max-time", "20", "--max-filesize", "2097152",
       "https://api.omarchyplugins.com/v1/stats"]
     stdout: StdioCollector {
       waitForEnd: true
@@ -1577,15 +1577,13 @@ Item {
 
                   BorderSurface {
                     id: previewFrame
-                    visible: root.selectedPlugin !== null
-                      && root.selectedPlugin.previewImage !== ""
-                      && detailPreview.status !== Image.Error
+                    visible: detailPreview.status === Image.Ready
                     readonly property bool portraitImage: detailPreview.status === Image.Ready
                       && detailPreview.sourceSize.height > detailPreview.sourceSize.width * 1.15
                     width: parent.width
-                    height: portraitImage
+                    height: visible ? (portraitImage
                       ? Math.min(Style.space(400), browseDetailPane.height * 0.58)
-                      : Math.min(Style.space(270), browseDetailPane.height * 0.4)
+                      : Math.min(Style.space(270), browseDetailPane.height * 0.4)) : 0
                     color: Util.alpha(root.foreground, 0.035)
                     borderSpec: Border.flat(Util.alpha(root.border, 0.25), Math.max(1, Style.normalBorderWidth))
                     radius: Style.cornerRadius
