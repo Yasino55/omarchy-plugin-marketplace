@@ -1,12 +1,12 @@
 # Plugin Marketplace
 
 A native Omarchy Quattro overlay for browsing and installing community plugins
-from [Omarchy Plugins](https://omarchyplugins.com/).
+from [Omarchy Plugins](https://plugins.omarchy.org/).
 
 ## Requirements
 
 - Omarchy Quattro with shell plugin support
-- Network access to `omarchyplugins.com`, `api.omarchyplugins.com`, and GitHub
+- Network access to `plugins.omarchy.org`, `api.omarchyplugins.com`, and GitHub
 - Standard Omarchy command-line tools, including Bash, curl, Git, jq, OpenSSH,
   and coreutils
 
@@ -43,7 +43,7 @@ The plugin does not modify Hyprland keybindings or application-launcher files.
 
 ![Plugin Marketplace](assets/marketplace-preview.png)
 
-The catalog is loaded from `https://omarchyplugins.com/catalog.json`. Search and
+The catalog is loaded from `https://plugins.omarchy.org/catalog.json`. Search and
 filtering happen locally. Installation is available only for entries explicitly
 marked installable whose repository is a valid GitHub HTTPS URL.
 

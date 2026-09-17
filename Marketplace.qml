@@ -188,7 +188,7 @@ Item {
       var schemaVersion = Number(catalog.stateSchemaVersion)
       if (!isFinite(schemaVersion) || schemaVersion < 1 || schemaVersion > 99
           || Math.floor(schemaVersion) !== schemaVersion
-          || !Array.isArray(catalog.plugins) || catalog.plugins.length > 2000)
+          || !Array.isArray(catalog.plugins) || catalog.plugins.length > 20000)
         throw new Error("Unsupported catalog format")
       var validPlugins = []
       for (var i = 0; i < catalog.plugins.length; i++) {
@@ -221,7 +221,7 @@ Item {
         throw new Error("Unsupported engagement format")
       var stats = ({})
       var ids = Object.keys(response.plugins)
-      if (ids.length > 2000) throw new Error("Engagement response is too large")
+      if (ids.length > 20000) throw new Error("Engagement response is too large")
       for (var i = 0; i < ids.length; i++) {
         var id = ids[i]
         if (!MarketplaceModel.pluginIdIsSafe(id) || id.length > 128) continue
@@ -323,6 +323,7 @@ Item {
     if (index < 0 || index >= root.displayRows.length) return
     root.selectedIndex = index
     pluginList.positionViewAtIndex(index, ListView.Contain)
+    root.refreshPreview()
   }
 
   function selectRelative(delta) {
@@ -952,8 +953,8 @@ Item {
 
   Process {
     id: catalogProc
-    command: ["curl", "-fsSL", "--max-time", "20", "--max-filesize", "8388608",
-      "https://omarchyplugins.com/catalog.json"]
+    command: ["curl", "-fsSL", "--max-time", "20", "--max-filesize", "16777216",
+      "https://plugins.omarchy.org/catalog.json"]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: root.loadCatalog(text)
@@ -961,7 +962,7 @@ Item {
     onExited: function(exitCode) {
       root.loading = false
       if (exitCode !== 0 && !root.catalogRequestParsed)
-        root.errorMessage = "Could not connect to omarchyplugins.com."
+        root.errorMessage = "Could not connect to plugins.omarchy.org."
     }
   }
 
@@ -1180,7 +1181,7 @@ Item {
           }
           if (sortDropdown.popupOpen || managementDropdown.popupOpen) return
           if (event.key === Qt.Key_Escape) {
-            if (searchField.text) searchField.clear()
+            if (searchField.activeFocus && searchField.text) searchField.clear()
             else root.close()
             event.accepted = true
           } else if (event.key === Qt.Key_Up) {
@@ -1214,6 +1215,7 @@ Item {
 
       Column {
         anchors.fill: parent
+        Keys.forwardTo: [keyCatcher]
         anchors.topMargin: card.contentTopInset
         anchors.rightMargin: card.contentRightInset
         anchors.bottomMargin: card.contentBottomInset
@@ -1575,6 +1577,9 @@ Item {
 
                   BorderSurface {
                     id: previewFrame
+                    visible: root.selectedPlugin !== null
+                      && root.selectedPlugin.previewImage !== ""
+                      && detailPreview.status !== Image.Error
                     readonly property bool portraitImage: detailPreview.status === Image.Ready
                       && detailPreview.sourceSize.height > detailPreview.sourceSize.width * 1.15
                     width: parent.width
@@ -1593,19 +1598,8 @@ Item {
                     source: root.previewPath
                     visible: source.toString() !== ""
                     asynchronous: true
-                    cache: true
+                    cache: false
                     fillMode: Image.PreserveAspectFit
-                  }
-                  Text {
-                    visible: !detailPreview.visible || detailPreview.status === Image.Error
-                    anchors.centerIn: parent
-                    text: root.selectedPlugin ? root.selectedPlugin.pluginName.slice(0, 2).toUpperCase() : ""
-                    textFormat: Text.PlainText
-                    color: root.accent
-                    opacity: 0.75
-                    font.family: root.fontFamily
-                    font.pixelSize: Style.space(44)
-                    font.bold: true
                   }
                   }
 
@@ -2086,8 +2080,8 @@ Item {
           text: root.statusMessage || (root.errorMessage && root.catalogLoaded
             ? root.errorMessage
             : root.viewMode !== "browse"
-              ? "Esc clears search, then closes  ·  Tab moves between actions"
-              : "Esc clears search, then closes  ·  ↑/↓ selects")
+              ? "Esc closes  ·  Tab moves between actions"
+              : "Esc closes  ·  ↑/↓ selects")
           color: root.statusMessage.indexOf("failed") !== -1 || root.errorMessage ? Color.urgent : root.foreground
           opacity: root.statusMessage || root.errorMessage ? 1 : 0.52
           elide: Text.ElideRight

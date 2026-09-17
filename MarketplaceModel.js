@@ -47,6 +47,7 @@ function matchesInstalled(plugin, query, filter) {
 
 function sortInstalled(plugins) {
   return plugins.slice().sort(function(first, second) {
+    if (first.firstParty !== second.firstParty) return first.firstParty ? 1 : -1
     if (first.enabled !== second.enabled) return first.enabled ? -1 : 1
     return compareNames(
       { name: first.pluginName, id: first.pluginId },
@@ -151,10 +152,10 @@ function plainText(value, fallback) {
 function previewUrl(value) {
   var source = String(value || "")
   if (!source) return ""
-  if (/^https:\/\/omarchyplugins\.com(?:\/|$)/.test(source)) return source
+  if (/^https:\/\/plugins\.omarchy\.org(?:\/|$)/.test(source)) return source
   if (/^https?:\/\//.test(source) || source.indexOf("//") === 0 || source.indexOf("..") !== -1)
     return ""
-  return "https://omarchyplugins.com/" + source.replace(/^\/+/, "")
+  return "https://plugins.omarchy.org/" + source.replace(/^\/+/, "")
 }
 
 function shortCommit(value) {
